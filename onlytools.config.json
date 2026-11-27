@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "product": {
+    "name": "OnlyShell",
+    "slug": "onlyshell",
+    "tagline": "Windows SSH 与 SFTP 工作台",
+    "description": "SSH 终端、SFTP、脚本和加密同步",
+    "category": "Windows Tools",
+    "status": "early-development",
+    "platforms": [
+      "Windows"
+    ],
+    "architectures": [
+      "x64"
+    ]
+  },
+  "repository": {
+    "owner": "onlytools-lab",
+    "name": "onlyshell",
+    "url": "https://github.com/onlytools-lab/onlyshell"
+  },
+  "release": {
+    "tagPrefix": "v",
+    "titleFormat": "{product} v{version}",
+    "assetNaming": "OnlyShell-win-x64.zip",
+    "requireSha256": false
+  },
+  "build": {
+    "commands": {
+      "test": "dotnet test OnlyShell.sln",
+      "build": "dotnet build OnlyShell.sln"
+    },
+    "artifactsPath": "artifacts/"
+  },
+  "documentation": {
+    "language": "zh-CN",
+    "readme": "README.md",
+    "changelog": "CHANGELOG.md"
+  }
+}
