@@ -160,7 +160,8 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
 
     public async Task DownloadAsync(string remotePath, string localPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-        var attributes = await client.GetAttributesAsync(remotePath, cancellationToken);
+        var attributes = await GetRemoteAttributesOrNullAsync(remotePath, cancellationToken)
+            ?? throw new SftpPathNotFoundException($"远程文件不存在：{remotePath}");
         if (attributes.IsDirectory || attributes.IsSymbolicLink)
             throw new IOException($"只支持下载普通文件：{remotePath}");
         var size = (long)attributes.Size;
@@ -239,11 +240,25 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
         return hash.GetHashAndReset();
     }
 
-    private async Task<SftpFileAttributes?> GetRemoteAttributesOrNullAsync(string path)
+    private async Task<SftpFileAttributes?> GetRemoteAttributesOrNullAsync(string path, CancellationToken cancellationToken = default)
     {
         try
         {
-            return await client.GetAttributesAsync(path, CancellationToken.None);
+            // SSH.NET canonicalizes the complete path before LSTAT, which follows
+            // the final symlink on OpenSSH. Read its parent entry to retain link metadata.
+            var trimmedPath = path.TrimEnd('/');
+            if (trimmedPath.Length == 0 || trimmedPath is "." or "..")
+                return await client.GetAttributesAsync(path, cancellationToken);
+
+            var separator = trimmedPath.LastIndexOf('/');
+            var parent = separator < 0 ? "." : separator == 0 ? "/" : trimmedPath[..separator];
+            var name = trimmedPath[(separator + 1)..];
+            await foreach (var entry in client.ListDirectoryAsync(parent, cancellationToken))
+            {
+                if (string.Equals(entry.Name, name, StringComparison.Ordinal))
+                    return entry.Attributes;
+            }
+            return null;
         }
         catch (SftpPathNotFoundException)
         {
