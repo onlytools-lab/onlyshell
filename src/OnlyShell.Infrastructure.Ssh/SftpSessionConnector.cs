@@ -189,21 +189,23 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
         }
 
         remoteFile.Position = offset;
-        await using var output = new FileStream(temporaryPath, offset == 0 ? FileMode.Create : FileMode.Append,
-            FileAccess.Write, FileShare.None, 128 * 1024, useAsync: true);
-        var buffer = new byte[128 * 1024];
-        var copied = offset;
-        progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
-        while (true)
+        await using (var output = new FileStream(temporaryPath, offset == 0 ? FileMode.Create : FileMode.Append,
+            FileAccess.Write, FileShare.None, 128 * 1024, useAsync: true))
         {
-            var read = await remoteFile.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
-                break;
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            copied += read;
+            var buffer = new byte[128 * 1024];
+            var copied = offset;
             progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
+            while (true)
+            {
+                var read = await remoteFile.ReadAsync(buffer, cancellationToken);
+                if (read == 0)
+                    break;
+                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                copied += read;
+                progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
+            }
+            await output.FlushAsync(cancellationToken);
         }
-        await output.FlushAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (new FileInfo(temporaryPath).Length != size)
             throw new IOException($"下载完整性校验失败：远程 {size} 字节，本地临时文件 {new FileInfo(temporaryPath).Length} 字节。可重试以续传；原目标文件未替换。");
