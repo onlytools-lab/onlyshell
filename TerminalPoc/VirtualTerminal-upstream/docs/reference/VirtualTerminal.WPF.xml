@@ -563,7 +563,7 @@
             <summary>Pastes the clipboard content into the session.</summary>
         </member>
         <member name="F:VirtualTerminal.TerminalControl.SelectAllCommand">
-            <summary>Selects the whole visible screen.</summary>
+            <summary>Selects the complete scrollback buffer and visible screen.</summary>
         </member>
         <member name="F:VirtualTerminal.TerminalControl.ClearCommand">
             <summary>Clears the terminal screen and scrollback.</summary>

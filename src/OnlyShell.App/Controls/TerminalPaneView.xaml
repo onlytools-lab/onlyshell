@@ -4,6 +4,51 @@
              xmlns:vt="clr-namespace:VirtualTerminal;assembly=VirtualTerminal.WPF"
              MinWidth="0" MinHeight="0">
     <UserControl.Resources>
+        <Style x:Key="TerminalContextMenu" TargetType="ContextMenu">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface.TerminalPopup}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="FontFamily" Value="{DynamicResource Font.UI}" />
+            <Setter Property="FontSize" Value="{DynamicResource Type.Size.Small}" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="4" SnapsToDevicePixels="True">
+                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+        <Style x:Key="TerminalContextMenuItem" TargetType="MenuItem">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="FontFamily" Value="{DynamicResource Font.UI}" />
+            <Setter Property="FontSize" Value="{DynamicResource Type.Size.Small}" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="MenuItemBackground" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                        <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuItemBackground" Property="Background" Value="{DynamicResource Brush.Surface.Hover}"/><Setter Property="Foreground" Value="{DynamicResource Brush.Text.Highlight}"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+        <Style x:Key="TerminalContextMenuSeparator" TargetType="Separator">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="6,3" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Background="{DynamicResource Brush.Border.Subtle}" /></ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style x:Key="GitMenuItemButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
@@ -59,13 +104,13 @@
             <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <vt:TerminalControl x:Name="Terminal" Grid.Row="0" Session="{Binding Session}" AllowDirectInput="True" ConfirmMultiLinePaste="{Binding DataContext.ConfirmMultiLinePaste, RelativeSource={RelativeSource AncestorType=Window}}" ScrollbackLines="{Binding DataContext.TerminalScrollbackLines, RelativeSource={RelativeSource AncestorType=Window}}" ScrollDownVisible="True" Background="{DynamicResource Brush.Surface.Terminal}" Foreground="{DynamicResource Brush.Text.Terminal}" FontFamily="{Binding DataContext.TerminalFontFamily, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="{Binding DataContext.TerminalFontSize, RelativeSource={RelativeSource AncestorType=Window}}">
             <vt:TerminalControl.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Header="复制选中内容    Ctrl+Shift+C" Command="{x:Static vt:TerminalControl.CopyCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                    <MenuItem Header="粘贴    Ctrl+Shift+V" Command="{x:Static vt:TerminalControl.PasteCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                    <Separator />
-                    <MenuItem Header="查找    Ctrl+F" Click="TerminalContextFind_Click" />
-                    <MenuItem Header="全选终端内容（含滚屏缓冲）" Command="{x:Static vt:TerminalControl.SelectAllCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                    <MenuItem Header="清屏" Command="{x:Static vt:TerminalControl.ClearCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                <ContextMenu Style="{StaticResource TerminalContextMenu}">
+                    <MenuItem Style="{StaticResource TerminalContextMenuItem}" Header="复制选中内容    Ctrl+Shift+C" Command="{x:Static vt:TerminalControl.CopyCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Style="{StaticResource TerminalContextMenuItem}" Header="粘贴    Ctrl+Shift+V" Command="{x:Static vt:TerminalControl.PasteCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <Separator Style="{StaticResource TerminalContextMenuSeparator}" />
+                    <MenuItem Style="{StaticResource TerminalContextMenuItem}" Header="查找    Ctrl+F" Click="TerminalContextFind_Click" />
+                    <MenuItem Style="{StaticResource TerminalContextMenuItem}" Header="全选终端内容（含滚屏缓冲）" Command="{x:Static vt:TerminalControl.SelectAllCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    <MenuItem Style="{StaticResource TerminalContextMenuItem}" Header="清屏" Command="{x:Static vt:TerminalControl.ClearCommand}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                 </ContextMenu>
             </vt:TerminalControl.ContextMenu>
         </vt:TerminalControl>
