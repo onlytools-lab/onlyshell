@@ -63,3 +63,5 @@ python scripts/release_assets.py --directory <下载目录> --version 1.0.7 --va
 ## 规范维护方反馈
 
 当前基线 ODS 的 `validate-version` 默认依赖 Tauri；WPF 产品应配置独立的 MSBuild 版本检查器。Velopack 双变体的历史 Tag 与生成资产名需要产品适配，不能直接套用单安装包模板。已在产品配置和本文记录例外；自动化校验通过不代表行为验收或负责人发布批准。
+
+另一个已复现的问题是：原 `validate-config` 只检查 `product.status` 非空，未执行 schema 的枚举约束，因此原值 `early-development` 能通过脚本却不符合 schema。本产品改为 `development`，并给本地校验器补充该约束和两项回归测试；这一修补需要反馈给规范维护方，本轮未自动向其他仓库提交修改。

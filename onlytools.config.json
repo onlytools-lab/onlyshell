@@ -6,7 +6,7 @@
     "tagline": "Windows SSH 与 SFTP 工作台",
     "description": "SSH 终端、SFTP、脚本和加密同步",
     "category": "Windows Tools",
-    "status": "early-development",
+    "status": "development",
     "platforms": [
       "Windows"
     ],
