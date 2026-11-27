@@ -22,15 +22,18 @@
   "release": {
     "tagPrefix": "v",
     "titleFormat": "{product} v{version}",
-    "assetNaming": "OnlyShell-win-x64.zip",
-    "requireSha256": false
+    "assetNaming": "OnlyShell-{variant}-v{version}-win-x64-Setup.exe",
+    "requireSha256": true,
+    "variantTags": ["v{version}-self-contained", "v{version}-framework-dependent"],
+    "generatedAssetNaming": "Velopack-generated package, bootstrapper, portable ZIP and feed names are retained for update compatibility"
   },
   "build": {
     "commands": {
-      "test": "dotnet test OnlyShell.sln",
+      "test": "python -m unittest discover -s scripts -p test_*.py && dotnet test TerminalPoc/VirtualTerminal-upstream/VirtualTerminal.Tests/VirtualTerminal.Tests.csproj -c Release",
       "build": "dotnet build OnlyShell.sln"
     },
-    "artifactsPath": "artifacts/"
+    "artifactsPath": "artifacts/",
+    "versionFiles": ["Directory.Build.props"]
   },
   "documentation": {
     "language": "zh-CN",

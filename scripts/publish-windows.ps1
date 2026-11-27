@@ -1,9 +1,13 @@
 param(
-    [string]$Version = "1.0.0"
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+if (-not $Version) {
+    [xml]$buildProperties = Get-Content (Join-Path $repositoryRoot 'Directory.Build.props') -Raw
+    $Version = $buildProperties.Project.PropertyGroup.Version
+}
 $publishDirectory = Join-Path $repositoryRoot "artifacts\publish\win-x64"
 $archivePath = Join-Path $repositoryRoot "artifacts\OnlyShell-win-x64.zip"
 $projectPath = Join-Path $repositoryRoot "src\OnlyShell.App\OnlyShell.App.csproj"

@@ -7,5 +7,6 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <Deterministic>true</Deterministic>
+    <Version>1.0.7</Version>
   </PropertyGroup>
 </Project>

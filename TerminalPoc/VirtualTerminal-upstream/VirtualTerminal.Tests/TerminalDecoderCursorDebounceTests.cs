@@ -82,10 +82,13 @@ public class TerminalDecoderCursorDebounceTests
         Assert.Equal('X', decoder.Buffer.GetCell(1, 0).Character.Value);
     }
 
-    [Fact]
-    public void LfAtScrollBottom_DefersScroll()
+    [Theory]
+    [InlineData(false, 1, 2)]
+    [InlineData(true, 0, 1)]
+    public void LfAtScrollBottom_DefersScroll_AndRespectsNewLineMode(bool newLineMode, int outputColumn, int finalColumn)
     {
         using TerminalDecoder decoder = CreateDecoder(columns: 10, rows: 4);
+        decoder.State.Modes.LineFeedNewLine = newLineMode;
 
         decoder.Write("0\r\n1\r\n2\r\n3"u8);
         Assert.Equal(1, decoder.State.CursorX);
@@ -98,8 +101,9 @@ public class TerminalDecoderCursorDebounceTests
 
         decoder.Write("x"u8);
         Assert.Equal('1', decoder.Buffer.GetCell(0, 0).Character.Value);
-        Assert.Equal('x', decoder.Buffer.GetCell(3, 0).Character.Value);
-        Assert.Equal(1, decoder.State.CursorX);
+        // LF preserves the column by default; ANSI LNM additionally returns it to zero.
+        Assert.Equal('x', decoder.Buffer.GetCell(3, outputColumn).Character.Value);
+        Assert.Equal(finalColumn, decoder.State.CursorX);
         Assert.Equal(3, decoder.State.CursorY);
     }
 
