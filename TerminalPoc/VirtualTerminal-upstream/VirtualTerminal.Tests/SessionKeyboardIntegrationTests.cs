@@ -278,19 +278,23 @@ public class SessionKeyboardIntegrationTests
         Assert.Equal(1, StateOf(session).CursorY);
     }
 
-    [Fact]
-    public void Enter_EncodedAndWritten_MovesToNextLine()
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public void Enter_EncodedAndWritten_RespectsNewLineMode(bool newLineMode, int finalRow)
     {
         using DummyTerminalSession session = new();
-        string? seq = Encode(TerminalKey.Enter, TerminalModifier.None);
+        session.Write("AB"u8);
+        string? seq = Encode(TerminalKey.Enter, TerminalModifier.None,
+            new TerminalModes { LineFeedNewLine = newLineMode });
+        Assert.Equal(newLineMode ? "\r\n" : "\r", seq);
 
         session.Write(Encoding.UTF8.GetBytes(seq!));
-        // A trailing newline is debounced until further bytes arrive; any subsequent output
-        // applies it (here the space lands at the start of the next line).
+        // Flush the trailing control bytes. Default Enter sends CR only; LNM sends CR+LF.
         session.Write(" "u8);
 
         Assert.Equal(1, StateOf(session).CursorX);
-        Assert.Equal(1, StateOf(session).CursorY);
+        Assert.Equal(finalRow, StateOf(session).CursorY);
     }
 
     [Fact]

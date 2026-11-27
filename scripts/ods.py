@@ -16,6 +16,8 @@ def config(path):
     p=c.get("product",{}); r=c.get("repository",{}); rel=c.get("release",{}); b=c.get("build",{})
     for k in ("name","slug","tagline","category","status"):
         if not p.get(k): errors.append(f"product.{k} is required")
+    if p.get("status") not in ("active", "beta", "development", "archived"):
+        errors.append("product.status must match the schema enum: active, beta, development, archived")
     if p.get("slug") and not re.fullmatch(r"[a-z0-9-]+",p["slug"]): errors.append("product.slug must be lowercase slug")
     if r.get("owner") != "onlytools-lab": errors.append("repository.owner must be onlytools-lab")
     for k in ("name","url"):

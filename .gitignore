@@ -19,6 +19,8 @@ logs/
 *.nupkg
 *.snupkg
 artifacts/
+__pycache__/
+*.pyc
 
 # OS noise
 Thumbs.db

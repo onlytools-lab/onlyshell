@@ -160,7 +160,8 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
 
     public async Task DownloadAsync(string remotePath, string localPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-        var attributes = await client.GetAttributesAsync(remotePath, cancellationToken);
+        var attributes = await GetRemoteAttributesOrNullAsync(remotePath, cancellationToken)
+            ?? throw new SftpPathNotFoundException($"远程文件不存在：{remotePath}");
         if (attributes.IsDirectory || attributes.IsSymbolicLink)
             throw new IOException($"只支持下载普通文件：{remotePath}");
         var size = (long)attributes.Size;
@@ -189,21 +190,23 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
         }
 
         remoteFile.Position = offset;
-        await using var output = new FileStream(temporaryPath, offset == 0 ? FileMode.Create : FileMode.Append,
-            FileAccess.Write, FileShare.None, 128 * 1024, useAsync: true);
-        var buffer = new byte[128 * 1024];
-        var copied = offset;
-        progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
-        while (true)
+        await using (var output = new FileStream(temporaryPath, offset == 0 ? FileMode.Create : FileMode.Append,
+            FileAccess.Write, FileShare.None, 128 * 1024, useAsync: true))
         {
-            var read = await remoteFile.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
-                break;
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            copied += read;
+            var buffer = new byte[128 * 1024];
+            var copied = offset;
             progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
+            while (true)
+            {
+                var read = await remoteFile.ReadAsync(buffer, cancellationToken);
+                if (read == 0)
+                    break;
+                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                copied += read;
+                progress?.Report(size == 0 ? 100 : Math.Clamp(copied * 100d / size, 0, 100));
+            }
+            await output.FlushAsync(cancellationToken);
         }
-        await output.FlushAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (new FileInfo(temporaryPath).Length != size)
             throw new IOException($"下载完整性校验失败：远程 {size} 字节，本地临时文件 {new FileInfo(temporaryPath).Length} 字节。可重试以续传；原目标文件未替换。");
@@ -237,11 +240,25 @@ internal sealed class SftpSession(SftpClient client) : ISftpSession
         return hash.GetHashAndReset();
     }
 
-    private async Task<SftpFileAttributes?> GetRemoteAttributesOrNullAsync(string path)
+    private async Task<SftpFileAttributes?> GetRemoteAttributesOrNullAsync(string path, CancellationToken cancellationToken = default)
     {
         try
         {
-            return await client.GetAttributesAsync(path, CancellationToken.None);
+            // SSH.NET canonicalizes the complete path before LSTAT, which follows
+            // the final symlink on OpenSSH. Read its parent entry to retain link metadata.
+            var trimmedPath = path.TrimEnd('/');
+            if (trimmedPath.Length == 0 || trimmedPath is "." or "..")
+                return await client.GetAttributesAsync(path, cancellationToken);
+
+            var separator = trimmedPath.LastIndexOf('/');
+            var parent = separator < 0 ? "." : separator == 0 ? "/" : trimmedPath[..separator];
+            var name = trimmedPath[(separator + 1)..];
+            await foreach (var entry in client.ListDirectoryAsync(parent, cancellationToken))
+            {
+                if (string.Equals(entry.Name, name, StringComparison.Ordinal))
+                    return entry.Attributes;
+            }
+            return null;
         }
         catch (SftpPathNotFoundException)
         {

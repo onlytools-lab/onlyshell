@@ -503,6 +503,22 @@ public partial class MainWindow : Window
             await _viewModel.OpenHostTerminalCommand.ExecuteAsync(host);
     }
 
+    private void Hosts_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox list
+            || e.OriginalSource is not DependencyObject source
+            || ItemsControl.ContainerFromElement(list, source) is not ListBoxItem item
+            || item.DataContext is not HostCatalogNode node
+            || node.IsFolder)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        list.SelectedItem = node;
+        item.Focus();
+    }
+
     private async void QuickConnectHosts_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListView { SelectedItem: OnlyShell.Core.Hosts.HostProfile host })

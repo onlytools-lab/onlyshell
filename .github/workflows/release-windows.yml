@@ -1,126 +1,92 @@
-name: Release Windows
-
+name: Release Windows Drafts
 on:
   push:
-    tags:
-      - "v*"
-
+    tags: ['v*']
 permissions:
   contents: write
-
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   release:
+    # Only the canonical tag builds; variant tags retain update compatibility.
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: windows-latest
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-
-      - name: Install Velopack CLI and Inno Setup
-        shell: pwsh
-        run: |
-          dotnet tool install --global vpk --version 1.2.0
-          "${env:USERPROFILE}\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          choco install innosetup --yes --no-progress
-
-      - name: Read release version
+      - name: Validate tag, source version and release documentation
         id: version
         shell: pwsh
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            throw "Tag must use semantic versioning, for example v1.2.3. Received: $env:GITHUB_REF_NAME"
-          }
-          "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - name: Publish self-contained application
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw 'Stable vMAJOR.MINOR.PATCH required' }
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release source must already be integrated into main' }
+          python scripts/ods.py validate-config --config onlytools.config.json
+          if ($LASTEXITCODE -ne 0) { throw 'Config validation failed' }
+          python scripts/ods.py validate-readme --readme README.md
+          if ($LASTEXITCODE -ne 0) { throw 'README validation failed' }
+          python scripts/check_product_version.py --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Tag/source version mismatch' }
+          python scripts/ods.py validate-changelog --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'CHANGELOG validation failed' }
+          python scripts/ods.py validate-release --notes "RELEASE-NOTES-v$version.md" --version $version
+          if ($LASTEXITCODE -ne 0) { throw 'Release Notes validation failed' }
+          python -m unittest discover -s scripts -p 'test_*.py'
+          if ($LASTEXITCODE -ne 0) { throw 'Release validation tests failed' }
+          "value=$version" >> $env:GITHUB_OUTPUT
+      - name: Build and run terminal regression tests
         shell: pwsh
-        run: >-
-          dotnet publish src/OnlyShell.App/OnlyShell.App.csproj
-          --configuration Release
-          --runtime win-x64
-          --self-contained true
-          --output artifacts/publish/self-contained
-          -p:Version=${{ steps.version.outputs.value }}
-
-      - name: Publish framework-dependent application
+        run: |
+          dotnet build OnlyShell.sln -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Application build failed' }
+          dotnet test TerminalPoc/VirtualTerminal-upstream/VirtualTerminal.Tests/VirtualTerminal.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Terminal regression tests failed' }
+      - name: Install packaging tools
         shell: pwsh
-        run: >-
-          dotnet publish src/OnlyShell.App/OnlyShell.App.csproj
-          --configuration Release
-          --runtime win-x64
-          --self-contained false
-          --output artifacts/publish/framework-dependent
-          -p:Version=${{ steps.version.outputs.value }}
-
-      - name: Package self-contained release
+        run: |
+          dotnet tool install --global vpk --version 1.2.0
+          if ($LASTEXITCODE -ne 0) { throw 'Velopack installation failed' }
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+      - name: Build both variants and deltas from previous public releases
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          $channel = "win-x64-self-contained"
-          $packId = "OnlyShellSelfContained"
-          $output = "artifacts/velopack/self-contained"
-          New-Item -ItemType Directory -Force -Path $output | Out-Null
-          $previousRelease = gh release list --repo $env:REPOSITORY --json tagName --jq '.[].tagName' | Where-Object { $_ -match '-self-contained$' } | Select-Object -First 1
-          if ($previousRelease) {
-            vpk download github --repoUrl "https://github.com/$env:REPOSITORY" --token $env:GITHUB_TOKEN --channel $channel --outputDir $output
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the previous $channel release" }
-          }
-          vpk pack --packId $packId --packTitle OnlyShell --packVersion $env:VERSION --packDir artifacts/publish/self-contained --mainExe OnlyShell.exe --channel $channel --outputDir $output --icon src/OnlyShell.App/Assets/OnlyShell.ico
-          if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed with exit code $LASTEXITCODE" }
-          $setup = (Resolve-Path "$output/$packId-$channel-Setup.exe").Path
-          $env:APP_VERSION = $env:VERSION
-          $env:VARIANT_NAME = "SelfContained"
-          $env:VPK_SETUP_PATH = $setup
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DVariantName="$env:VARIANT_NAME" /DVpkSetupPath="$env:VPK_SETUP_PATH" installer/OnlyShell.iss
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
-          $tag = "v$env:VERSION-self-contained"
-          vpk upload github --repoUrl "https://github.com/$env:REPOSITORY" --token $env:GITHUB_TOKEN --channel $channel --outputDir $output --publish --tag $tag --targetCommitish $env:GITHUB_SHA --releaseName "OnlyShell $env:VERSION (Self-contained)"
-          if ($LASTEXITCODE -ne 0) { throw "Velopack upload failed with exit code $LASTEXITCODE" }
-          gh release upload $tag "artifacts/setup/OnlyShell-SelfContained-$env:VERSION-Setup.exe" --repo $env:REPOSITORY --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Could not upload the self-contained Inno Setup installer (exit code $LASTEXITCODE)" }
-          Remove-Item -LiteralPath $setup -Force
-
-      - name: Package framework-dependent release
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/build-release.ps1 -Version $env:VERSION -PreviousRepository $env:GITHUB_REPOSITORY
+      - name: Create draft releases and verify downloaded assets
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.value }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
         run: |
-          $channel = "win-x64-framework-dependent"
-          $packId = "OnlyShellFrameworkDependent"
-          $output = "artifacts/velopack/framework-dependent"
-          New-Item -ItemType Directory -Force -Path $output | Out-Null
-          $previousRelease = gh release list --repo $env:REPOSITORY --json tagName --jq '.[].tagName' | Where-Object { $_ -match '-framework-dependent$' } | Select-Object -First 1
-          if ($previousRelease) {
-            vpk download github --repoUrl "https://github.com/$env:REPOSITORY" --token $env:GITHUB_TOKEN --channel $channel --outputDir $output
-            if ($LASTEXITCODE -ne 0) { throw "Could not download the previous $channel release" }
+          foreach ($variant in @('self-contained', 'framework-dependent')) {
+            $tag = "v$env:VERSION-$variant"
+            $assets = "artifacts/release/$env:VERSION/assets/$variant"
+            $files = @(Get-ChildItem -LiteralPath $assets -File | ForEach-Object { $_.FullName })
+            gh release create $tag @files --repo $env:GITHUB_REPOSITORY --draft --target $env:GITHUB_SHA --title "OnlyShell v$env:VERSION" --notes-file "RELEASE-NOTES-v$env:VERSION.md"
+            if ($LASTEXITCODE -ne 0) { throw "Draft creation failed for $tag; existing releases are never overwritten" }
+            $download = "artifacts/downloaded/$variant"
+            gh release download $tag --repo $env:GITHUB_REPOSITORY --dir $download
+            if ($LASTEXITCODE -ne 0) { throw 'Draft asset download failed' }
+            python scripts/release_assets.py --directory $download --version $env:VERSION --variant $variant --source-sha $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { throw 'Downloaded draft verification failed' }
           }
-          vpk pack --packId $packId --packTitle OnlyShell --packVersion $env:VERSION --packDir artifacts/publish/framework-dependent --mainExe OnlyShell.exe --channel $channel --outputDir $output --icon src/OnlyShell.App/Assets/OnlyShell.ico --framework net10.0-x64-desktop
-          if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed with exit code $LASTEXITCODE" }
-          $setup = (Resolve-Path "$output/$packId-$channel-Setup.exe").Path
-          $env:APP_VERSION = $env:VERSION
-          $env:VARIANT_NAME = "FrameworkDependent"
-          $env:VPK_SETUP_PATH = $setup
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion="$env:APP_VERSION" /DVariantName="$env:VARIANT_NAME" /DVpkSetupPath="$env:VPK_SETUP_PATH" installer/OnlyShell.iss
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
-          $tag = "v$env:VERSION-framework-dependent"
-          vpk upload github --repoUrl "https://github.com/$env:REPOSITORY" --token $env:GITHUB_TOKEN --channel $channel --outputDir $output --publish --tag $tag --targetCommitish $env:GITHUB_SHA --releaseName "OnlyShell $env:VERSION (.NET Desktop Runtime required)"
-          if ($LASTEXITCODE -ne 0) { throw "Velopack upload failed with exit code $LASTEXITCODE" }
-          gh release upload $tag "artifacts/setup/OnlyShell-FrameworkDependent-$env:VERSION-Setup.exe" --repo $env:REPOSITORY --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Could not upload the framework-dependent Inno Setup installer (exit code $LASTEXITCODE)" }
-          Remove-Item -LiteralPath $setup -Force
+          gh release create "v$env:VERSION" --repo $env:GITHUB_REPOSITORY --verify-tag --draft --title "OnlyShell v$env:VERSION" --notes-file "RELEASE-NOTES-v$env:VERSION.md"
+          if ($LASTEXITCODE -ne 0) { throw 'Canonical version index draft creation failed' }
+          'Three drafts remain private: the canonical version index and two update variants. Owner approval and Windows update acceptance are required before publication.' >> $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-drafts
+          path: artifacts/release/*/assets/
+          if-no-files-found: error

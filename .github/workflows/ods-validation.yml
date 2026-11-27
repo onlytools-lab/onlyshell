@@ -1,23 +1,68 @@
 name: ONLYTOOLS Governance Validation
 on:
   pull_request:
-    paths:
-      - 'onlytools.config.json'
-      - 'scripts/ods.py'
-      - 'scripts/check_product_version.py'
-      - '.github/workflows/ods-validation.yml'
-      - 'Directory.Build.props'
-      - 'CutPic.csproj'
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   validate:
+    name: ODS validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
-      - name: Validate ONLYTOOLS product metadata
-        run: python scripts/ods.py validate-config --config onlytools.config.json
+      - name: Validate metadata, documentation and candidate version
+        run: |
+          python scripts/ods.py validate-config --config onlytools.config.json
+          python scripts/ods.py validate-readme --readme README.md
+          VERSION=$(python -c "import xml.etree.ElementTree as E; print(E.parse('Directory.Build.props').findtext('.//Version'))")
+          python scripts/check_product_version.py --version "$VERSION"
+          python scripts/ods.py validate-changelog --version "$VERSION"
+          python scripts/ods.py validate-release --notes "RELEASE-NOTES-v$VERSION.md" --version "$VERSION"
+          python -m unittest discover -s scripts -p 'test_*.py'
+  windows:
+    name: Windows build, tests and packages
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build application and run terminal regression tests
+        shell: pwsh
+        run: |
+          dotnet build OnlyShell.sln -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Application build failed' }
+          dotnet test TerminalPoc/VirtualTerminal-upstream/VirtualTerminal.Tests/VirtualTerminal.Tests.csproj -c Release --logger 'trx;LogFileName=terminal.trx' --results-directory artifacts/test-results
+          if ($LASTEXITCODE -ne 0) { throw 'Terminal regression tests failed' }
+      - name: Install packaging tools
+        shell: pwsh
+        run: |
+          dotnet tool install --global vpk --version 1.2.0
+          if ($LASTEXITCODE -ne 0) { throw 'Velopack installation failed' }
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+      - name: Build and verify both variants without publishing
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props -Raw
+          ./scripts/build-release.ps1 -Version $props.Project.PropertyGroup.Version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-candidate
+          path: artifacts/release/*/assets/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terminal-test-results
+          path: artifacts/test-results/
+          if-no-files-found: ignore

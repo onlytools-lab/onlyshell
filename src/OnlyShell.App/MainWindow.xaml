@@ -84,6 +84,54 @@
                 </ControlTemplate>
             </Setter.Value></Setter>
         </Style>
+        <Style x:Key="HostContextMenuItem" TargetType="MenuItem">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="FontFamily" Value="{DynamicResource Font.UI}" />
+            <Setter Property="FontSize" Value="{DynamicResource Type.Size.Small}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border x:Name="MenuItemBackground" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                        <Grid MinWidth="190">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="{TemplateBinding Background}" Padding="5,0">
+                                <ContentPresenter ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="MenuItemBackground" Property="Background" Value="{DynamicResource Brush.Surface.Hover}"/><Setter Property="Foreground" Value="{DynamicResource Brush.Text.Highlight}"/></Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}"/></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
+        <Style x:Key="HostContextMenuSeparator" TargetType="Separator">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="6,3" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Separator"><Border Height="1" Background="{DynamicResource Brush.Border.Subtle}" /></ControlTemplate></Setter.Value></Setter>
+        </Style>
+        <Style x:Key="HostContextMenu" TargetType="ContextMenu">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Surface.TerminalPopup}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border.Strong}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" CornerRadius="4" SnapsToDevicePixels="True">
+                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -133,7 +181,7 @@
                         <TextBox Text="{Binding HostFilter, UpdateSourceTrigger=PropertyChanged}" ToolTip="按名称、地址、用户或分组搜索" Height="{StaticResource Control.InputHeight}" Background="{DynamicResource Brush.Surface.Input}" Foreground="{DynamicResource Brush.Text.Primary}" BorderBrush="{DynamicResource Brush.Border.Subtle}" BorderThickness="1" Padding="7,4" FontSize="{DynamicResource Type.Size.Small}" />
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Bottom" Margin="4,8,4,0">
-                        <ContentControl DataContext="{Binding SelectedTerminalTab}" Visibility="{Binding IsRemoteMetricsVisible, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="{StaticResource Space.Gap.Bottom.LG}">
+                        <ContentControl DataContext="{Binding SelectedTerminalTab}" Visibility="{Binding IsRemoteMetricsVisible, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed, TargetNullValue=Collapsed}" Margin="{StaticResource Space.Gap.Bottom.LG}">
                             <controls:ServerMetricsView />
                         </ContentControl>
                         <Border Height="1" Background="{DynamicResource Brush.Border.Subtle}" Margin="0,0,0,7" />
@@ -141,9 +189,9 @@
                         <Button Content="{Binding SyncStatus}" Command="{Binding SelectSectionCommand}" CommandParameter="同步" Background="Transparent" Foreground="{DynamicResource Brush.Text.Primary}" BorderThickness="0" FontSize="{DynamicResource Type.Size.Small}" HorizontalContentAlignment="Left" Padding="0,6" />
                         <TextBlock Text="V1.0 不同步 SSH 密码和私钥" Foreground="{DynamicResource Brush.Text.Secondary}" FontSize="{DynamicResource Type.Size.Label}" TextWrapping="Wrap" Margin="{StaticResource Space.Gap.Bottom.XS}" />
                     </StackPanel>
-                    <ListBox ItemsSource="{Binding VisibleHostCatalogNodes}" SelectedItem="{Binding SelectedHostCatalogNode, Mode=TwoWay}" MouseDoubleClick="Hosts_MouseDoubleClick" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Margin="{StaticResource Space.Gap.Top.LG}">
+                    <ListBox x:Name="HostCatalogList" ItemsSource="{Binding VisibleHostCatalogNodes}" SelectedItem="{Binding SelectedHostCatalogNode, Mode=TwoWay}" PreviewMouseRightButtonDown="Hosts_PreviewMouseRightButtonDown" MouseDoubleClick="Hosts_MouseDoubleClick" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Margin="{StaticResource Space.Gap.Top.LG}">
                         <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Background" Value="Transparent"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="RowSurface" Background="Transparent"><ContentPresenter Margin="3,0"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource Brush.Surface.HoverSubtle}"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="RowSurface" Property="Background" Value="{DynamicResource Brush.Surface.SelectionQuiet}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-                        <ListBox.ItemTemplate><DataTemplate><Grid Height="36" ClipToBounds="True"><Grid.ColumnDefinitions><ColumnDefinition Width="{Binding TreeIndentWidth}"/><ColumnDefinition Width="18"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Button Grid.Column="1" Content="{Binding ExpandGlyph}" Command="{Binding DataContext.ToggleHostGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Visibility="{Binding IsFolder, Converter={StaticResource BooleanToVisibilityConverter}}" Background="Transparent" Foreground="{DynamicResource Brush.Text.Secondary}" BorderThickness="0" Padding="0"/><Ellipse x:Name="HostDot" Grid.Column="1" Width="5" Height="5" Fill="{DynamicResource Brush.Text.Tertiary}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/><Path x:Name="GroupGlyph" Grid.Column="2" Width="16" Height="16" Margin="1,0,4,0" Data="M 1,4 L 7,4 L 9,6 L 16,6 L 16,15 L 1,15 Z" Stroke="{DynamicResource Brush.Accent.Primary}" StrokeThickness="1.3" Fill="{DynamicResource Brush.Surface.SelectionQuiet}" VerticalAlignment="Center" HorizontalAlignment="Center"/><StackPanel Grid.Column="3" Margin="0,0,2,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="{DynamicResource Type.Size.Small}" Foreground="{DynamicResource Brush.Text.Primary}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Brush.Text.Secondary}" FontFamily="{DynamicResource Font.Mono}" FontSize="{DynamicResource Type.Size.Caption}" Margin="{StaticResource Space.Gap.Top.XXS}" TextTrimming="CharacterEllipsis"/></StackPanel></Grid><DataTemplate.Triggers><DataTrigger Binding="{Binding IsFolder}" Value="False"><Setter TargetName="GroupGlyph" Property="Visibility" Value="Collapsed"/><Setter TargetName="HostDot" Property="Visibility" Value="Visible"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ListBox.ItemTemplate>
+                        <ListBox.ItemTemplate><DataTemplate><Grid Height="36" ClipToBounds="True" ContextMenuService.IsEnabled="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ListBox}}"><Grid.ContextMenu><ContextMenu Style="{StaticResource HostContextMenu}" DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}" Foreground="{DynamicResource Brush.Text.Primary}" FontFamily="{DynamicResource Font.UI}" FontSize="{DynamicResource Type.Size.Small}"><MenuItem Style="{StaticResource HostContextMenuItem}" Header="[ SSH CONNECT ]" Command="{Binding ConnectToSelectedHostCommand}"><MenuItem.Icon><TextBlock Text="&gt;_" FontFamily="{DynamicResource Font.Mono}" FontWeight="Bold" Foreground="{DynamicResource Brush.Accent.Primary}"/></MenuItem.Icon></MenuItem><MenuItem Style="{StaticResource HostContextMenuItem}" Header="[ FORGET PW ]" Command="{Binding ForgetCredentialCommand}"><MenuItem.Icon><TextBlock Text="PW" FontFamily="{DynamicResource Font.Mono}" FontSize="{DynamicResource Type.Size.Tiny}" FontWeight="Bold" Foreground="{DynamicResource Brush.Status.Warning}"/></MenuItem.Icon></MenuItem><Separator Style="{StaticResource HostContextMenuSeparator}"/><MenuItem Style="{StaticResource HostContextMenuItem}" Header="[ EDIT ]" Command="{Binding EditHostCommand}"><MenuItem.Icon><TextBlock Text="✎" FontSize="{DynamicResource Type.Size.Body}" Foreground="{DynamicResource Brush.Status.Info}"/></MenuItem.Icon></MenuItem><MenuItem Style="{StaticResource HostContextMenuItem}" Header="[ DELETE ]" Command="{Binding DeleteHostCommand}" Foreground="{DynamicResource Brush.Status.Error}"><MenuItem.Icon><TextBlock Text="×" FontSize="{DynamicResource Type.Size.Body}" FontWeight="Bold" Foreground="{DynamicResource Brush.Status.Error}"/></MenuItem.Icon></MenuItem></ContextMenu></Grid.ContextMenu><Grid.ColumnDefinitions><ColumnDefinition Width="{Binding TreeIndentWidth}"/><ColumnDefinition Width="18"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Button Grid.Column="1" Content="{Binding ExpandGlyph}" Command="{Binding DataContext.ToggleHostGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Visibility="{Binding IsFolder, Converter={StaticResource BooleanToVisibilityConverter}}" Background="Transparent" Foreground="{DynamicResource Brush.Text.Secondary}" BorderThickness="0" Padding="0"/><Ellipse x:Name="HostDot" Grid.Column="1" Width="5" Height="5" Fill="{DynamicResource Brush.Text.Tertiary}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/><Path x:Name="GroupGlyph" Grid.Column="2" Width="16" Height="16" Margin="1,0,4,0" Data="M 1,4 L 7,4 L 9,6 L 16,6 L 16,15 L 1,15 Z" Stroke="{DynamicResource Brush.Accent.Primary}" StrokeThickness="1.3" Fill="{DynamicResource Brush.Surface.SelectionQuiet}" VerticalAlignment="Center" HorizontalAlignment="Center"/><StackPanel Grid.Column="3" Margin="0,0,2,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="{DynamicResource Type.Size.Small}" Foreground="{DynamicResource Brush.Text.Primary}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Brush.Text.Secondary}" FontFamily="{DynamicResource Font.Mono}" FontSize="{DynamicResource Type.Size.Caption}" Margin="{StaticResource Space.Gap.Top.XXS}" TextTrimming="CharacterEllipsis"/></StackPanel></Grid><DataTemplate.Triggers><DataTrigger Binding="{Binding IsFolder}" Value="False"><Setter TargetName="GroupGlyph" Property="Visibility" Value="Collapsed"/><Setter TargetName="HostDot" Property="Visibility" Value="Visible"/></DataTrigger></DataTemplate.Triggers></DataTemplate></ListBox.ItemTemplate>
                     </ListBox>
                 </DockPanel>
             </Border>
