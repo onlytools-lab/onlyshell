@@ -1,0 +1,23 @@
+name: ONLYTOOLS Governance Validation
+on:
+  pull_request:
+    paths:
+      - 'onlytools.config.json'
+      - 'scripts/ods.py'
+      - 'scripts/check_product_version.py'
+      - '.github/workflows/ods-validation.yml'
+      - 'Directory.Build.props'
+      - 'CutPic.csproj'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate ONLYTOOLS product metadata
+        run: python scripts/ods.py validate-config --config onlytools.config.json
